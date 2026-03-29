@@ -72,6 +72,20 @@ def run_project(project_description: str, workspace: str, web: bool = True, port
         from harness.web import start_web_server
         start_web_server(port)
 
+    # Build skill/agent registries in workspace
+    from harness.scanner import build_skill_registry, build_agent_registry
+    from harness.config import config as harness_config
+    selected_skills = harness_config.get_selected_skills()
+    selected_agents = harness_config.get_selected_agents()
+    if selected_skills:
+        build_skill_registry(selected_skills, workspace)
+        bus.emit("log", source="Orchestrator",
+                 message=f"Skill registry: {len(selected_skills)} skills loaded")
+    if selected_agents:
+        build_agent_registry(selected_agents, workspace)
+        bus.emit("log", source="Orchestrator",
+                 message=f"Agent registry: {len(selected_agents)} agents loaded")
+
     bus.emit("log", source="Orchestrator", message=f"Project: {project_description}")
     bus.emit("log", source="Orchestrator", message=f"Workspace: {workspace}")
 

@@ -8,6 +8,15 @@ CRITICAL RULES:
 - If test details in the contract are high-level, interpret them sensibly
   and write concrete test implementations yourself.
 
+SKILLS & AGENTS:
+- Check .orchestrator/skill-registry.md for available design/engineering skills.
+  Before building UI or complex features, READ the relevant skill files listed there.
+  You are in headless mode — read the skill file, understand the guidelines, apply
+  them in your implementation. Do not try to invoke skills interactively.
+- Check .orchestrator/agent-registry.md for available specialist agents you can reference.
+- If frontend-design skill is available, READ IT before writing any HTML/CSS/JS.
+  Follow its typography, color, layout, and motion guidelines strictly.
+
 THE CONTRACT defines WHAT to build. HOW you build it is your craft.
 
 YOUR MINDSET:

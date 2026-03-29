@@ -23,13 +23,26 @@ def _get_app():
     if _app is not None:
         return _app
 
-    from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+    from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Request
     from fastapi.responses import HTMLResponse, JSONResponse
 
     _app = FastAPI(title="Harness Claude")
 
     @_app.get("/")
     async def index():
+        from harness.config import config
+        if not config.is_onboarded():
+            return await onboarding()
+        html_path = Path(__file__).parent / "static" / "index.html"
+        return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+    @_app.get("/onboarding")
+    async def onboarding():
+        html_path = Path(__file__).parent / "static" / "onboarding.html"
+        return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+    @_app.get("/app")
+    async def app_page():
         html_path = Path(__file__).parent / "static" / "index.html"
         return HTMLResponse(html_path.read_text(encoding="utf-8"))
 
@@ -46,6 +59,35 @@ def _get_app():
     async def get_config():
         from harness.config import config
         return JSONResponse(config.to_dict())
+
+    @_app.get("/api/scan")
+    async def scan_available():
+        """Scan system for available skills and agents."""
+        from harness.scanner import scan_skills, scan_agents
+        from harness.config import config
+        return JSONResponse({
+            "skills": scan_skills(),
+            "agents": scan_agents(),
+            "selected_skills": config.get_selected_skills(),
+            "selected_agents": config.get_selected_agents(),
+            "onboarded": config.is_onboarded(),
+        })
+
+    @_app.get("/api/onboard-status")
+    async def get_onboard_status():
+        from harness.config import config
+        return JSONResponse({"onboarded": config.is_onboarded()})
+
+    @_app.post("/api/save-selections")
+    async def save_selections(request: Request):
+        """Save skill/agent selections from onboarding."""
+        from harness.config import config
+        body = await request.json()
+        config.set_selected_skills(body.get("skills", []))
+        config.set_selected_agents(body.get("agents", []))
+        config.set_onboarded(True)
+        config.save_to_disk()
+        return JSONResponse({"ok": True})
 
     @_app.websocket("/ws")
     async def websocket_endpoint(ws: WebSocket):
