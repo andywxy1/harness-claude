@@ -15,12 +15,23 @@ def run_planner(project_description: str, workspace: str) -> tuple[str, list[dic
     bus.emit("agent_start", agent="planner")
 
     session_id = fresh_session_id()
+
+    prompt = (
+        "Generate a sprint plan for the following project. "
+        "Do NOT explore the codebase. Do NOT use any tools. "
+        "ONLY output the sprint plan in the specified format.\n\n"
+        f"PROJECT: {project_description}\n\n"
+        "Output the sprint plan now, starting with ---BEGIN SPRINT PLAN--- "
+        "and ending with ---END SPRINT PLAN---."
+    )
+
     response = call_claude(
-        prompt=project_description,
+        prompt=prompt,
         session_id=session_id,
         system_prompt=PLANNER_SYSTEM,
         workspace=workspace,
         is_first_turn=True,
+        allowed_tools="",  # no tools — planner only outputs text
     )
 
     bus.emit("agent_output", agent="planner", text=response)
