@@ -5,3 +5,6 @@ dist/
 build/
 .orchestrator/
 workspace/
+.DS_Store
+.env
+*.log
