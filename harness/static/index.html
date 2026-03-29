@@ -1664,14 +1664,38 @@ function handleAgentChunk(ev) {
 
 function renderToolCall(ev) {
   const agent = ev.agent || 'unknown';
-  const bubble = S.activeBubbles[agent];
-  if (!bubble) return; // No active bubble to attach to
+  let bubble = S.activeBubbles[agent];
+
+  // If no bubble exists yet, create one (agent started with tool calls before text)
+  if (!bubble) {
+    const sec = $('#sec-output');
+    const empty = sec.querySelector('.empty-state');
+    if (empty) empty.remove();
+
+    const bubbleCls = getBubbleClass(agent);
+    const label = getBubbleLabel(agent);
+    const ts = new Date().toISOString().substring(11, 19);
+
+    const el = document.createElement('div');
+    el.className = `chat-bubble ${bubbleCls}`;
+    el.innerHTML = `
+      <div class="bubble-header">
+        <span class="bubble-label">${label}</span>
+        <span class="bubble-ts">${ts}</span>
+      </div>
+      <div class="md-body"></div>
+      <span class="typing-indicator"></span>`;
+    sec.appendChild(el);
+
+    S.activeBubbles[agent] = { el, text: '', phase: S.state.phase || 'unknown' };
+    bubble = S.activeBubbles[agent];
+  }
 
   const icon = getToolIcon(ev.tool);
-  const inputPreview = (ev.input || '').substring(0, 60).replace(/\n/g, ' ');
+  const inputPreview = (ev.input_preview || ev.input || '').substring(0, 80).replace(/\n/g, ' ');
   const toolEl = document.createElement('div');
   toolEl.className = 'tool-call-inline';
-  toolEl.innerHTML = `<span class="tool-icon">${icon}</span><span class="tool-name">${escHtml(ev.tool)}</span><span class="tool-input">${escHtml(inputPreview)}${(ev.input||'').length > 60 ? '...' : ''}</span>`;
+  toolEl.innerHTML = `<span class="tool-icon">${icon}</span><span class="tool-name">${escHtml(ev.tool)}</span><span class="tool-input">${escHtml(inputPreview)}</span>`;
 
   // Insert before the typing indicator
   const indicator = bubble.el.querySelector('.typing-indicator');
@@ -1679,6 +1703,12 @@ function renderToolCall(ev) {
     bubble.el.insertBefore(toolEl, indicator);
   } else {
     bubble.el.appendChild(toolEl);
+  }
+
+  // Update header status with current tool activity
+  const statusText = $('#statusText');
+  if (statusText && ev.status === 'started') {
+    statusText.textContent = `${capitalize(agent)}: ${ev.tool} ${inputPreview ? '— ' + inputPreview.substring(0, 40) : ''}`;
   }
 
   const mainContent = $('#mainContent');
@@ -1905,7 +1935,10 @@ function logMessage(ev) {
     case 'done_signal_missing': return 'Generator did not create .done';
     case 'project_complete': return 'Done';
     case 'error': return ev.message || '';
+    case 'agent_tool': return `${ev.agent || ''}: ${ev.tool || ''} ${(ev.input_preview || '').substring(0, 60)}`;
     case 'usage': return `${ev.agent || ''}: ${ev.input_tokens||0} in / ${ev.output_tokens||0} out ($${(ev.cost||0).toFixed(4)})`;
+    case 'test_checklist': return `${(ev.tests||[]).length} tests to verify`;
+    case 'test_results': return `${(ev.results||[]).length} test results`;
     default: return JSON.stringify(ev).substring(0, 120);
   }
 }
