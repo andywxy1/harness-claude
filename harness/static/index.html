@@ -39,13 +39,13 @@ body {
   height: 100vh;
   overflow: hidden;
   display: grid;
-  grid-template-rows: 48px 36px 1fr 200px;
+  grid-template-rows: 48px 36px 1fr 160px;
   grid-template-columns: 260px 1fr;
   grid-template-areas:
     "header header"
     "sprints sprints"
     "sidebar main"
-    "log log";
+    "command command";
 }
 
 /* ─── Header ─────────────────────────────── */
@@ -357,7 +357,7 @@ body {
 
 /* ─── Command Bar ────────────────────────── */
 .command-bar {
-  grid-area: log;
+  grid-area: command;
   background: var(--bg-1);
   border-top: 1px solid var(--border);
   display: flex;
@@ -911,31 +911,97 @@ function updateLayout() {
   const cmdBar = $('#commandBar');
   const logPanel = $('#logPanel');
   const stopBtn = $('#stopBtn');
+  const hasLog = S.logEvents.length > 0;
 
   if (projectRunning) {
+    // Running: hide command bar, show log, show stop button
     cmdBar.classList.add('hidden');
     logPanel.style.display = '';
     stopBtn.classList.remove('hidden');
     document.body.style.gridTemplateRows = '48px 36px 1fr 200px';
+    document.body.style.gridTemplateAreas = `
+      "header header"
+      "sprints sprints"
+      "sidebar main"
+      "log log"`;
+  } else if (hasLog) {
+    // Stopped/complete with log history: show both command bar and log
+    cmdBar.classList.remove('hidden');
+    logPanel.style.display = '';
+    stopBtn.classList.add('hidden');
+    document.body.style.gridTemplateRows = '48px 36px 1fr 130px 180px';
+    document.body.style.gridTemplateAreas = `
+      "header header"
+      "sprints sprints"
+      "sidebar main"
+      "command command"
+      "log log"`;
   } else {
+    // Fresh start: command bar only
     cmdBar.classList.remove('hidden');
     logPanel.style.display = 'none';
     stopBtn.classList.add('hidden');
     document.body.style.gridTemplateRows = '48px 36px 1fr 160px';
+    document.body.style.gridTemplateAreas = `
+      "header header"
+      "sprints sprints"
+      "sidebar main"
+      "command command"`;
   }
+}
+
+function resetProject() {
+  projectRunning = false;
+  S.outputs = [];
+  S.contracts = [];
+  S.evalReports = [];
+  S.sprints = [];
+  S.phases = [];
+  S.currentSprint = 0;
+  S.state = {};
+  resetPhases();
+  renderAll();
+  updateLayout();
 }
 
 // Wrap handleEvent to detect project lifecycle
 const _origHandleEvent = handleEvent;
 handleEvent = function(ev) {
   _origHandleEvent(ev);
+
+  // Project started
   if (ev.type === 'phase_change' && !projectRunning) {
     projectRunning = true;
     updateLayout();
   }
-  if (ev.type === 'project_complete') {
+
+  // Project ended (success or error)
+  if (ev.type === 'project_complete' || ev.type === 'error') {
     projectRunning = false;
     updateLayout();
+    // Show log panel alongside command bar after completion
+    $('#logPanel').style.display = '';
+    document.body.style.gridTemplateRows = '48px 36px 1fr 160px 200px';
+    document.body.style.gridTemplateAreas = `
+      "header header"
+      "sprints sprints"
+      "sidebar main"
+      "command command"
+      "log log"`;
+  }
+
+  // Stop acknowledged
+  if (ev.type === 'stop_requested') {
+    projectRunning = false;
+    updateLayout();
+    $('#logPanel').style.display = '';
+    document.body.style.gridTemplateRows = '48px 36px 1fr 160px 200px';
+    document.body.style.gridTemplateAreas = `
+      "header header"
+      "sprints sprints"
+      "sidebar main"
+      "command command"
+      "log log"`;
   }
 };
 

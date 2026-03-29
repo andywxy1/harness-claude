@@ -31,7 +31,7 @@ def run_planner(project_description: str, workspace: str) -> tuple[str, list[dic
         system_prompt=PLANNER_SYSTEM,
         workspace=workspace,
         is_first_turn=True,
-        allowed_tools="",  # no tools — planner only outputs text
+        timeout=900,  # longer timeout — planner may research online
     )
 
     bus.emit("agent_output", agent="planner", text=response)

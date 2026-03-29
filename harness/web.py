@@ -99,14 +99,14 @@ def _handle_start_project(msg: dict):
 
 
 def _handle_stop_project():
-    """Signal the orchestrator to stop. Currently a hard kill."""
+    """Signal the orchestrator to stop."""
     global _orchestrator_thread
     if _orchestrator_thread and _orchestrator_thread.is_alive():
         bus.emit("log", source="Web", message="Stop requested — project will halt after current agent finishes")
-        # Set a flag the orchestrator can check
         bus.emit("stop_requested")
     else:
         bus.emit("log", source="Web", message="No project running.")
+        bus.emit("stop_requested")  # still emit so UI resets
 
 
 def _on_event(event: dict):
