@@ -24,7 +24,7 @@ def _get_app():
         return _app
 
     from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-    from fastapi.responses import HTMLResponse
+    from fastapi.responses import HTMLResponse, JSONResponse
 
     _app = FastAPI(title="Harness Claude")
 
@@ -32,6 +32,15 @@ def _get_app():
     async def index():
         html_path = Path(__file__).parent / "static" / "index.html"
         return HTMLResponse(html_path.read_text(encoding="utf-8"))
+
+    @_app.get("/api/browse-folder")
+    async def browse_folder():
+        """Open native macOS folder picker and return selected path."""
+        import asyncio
+        path = await asyncio.to_thread(_open_folder_dialog)
+        if path:
+            return JSONResponse({"path": path})
+        return JSONResponse({"path": None})
 
     @_app.websocket("/ws")
     async def websocket_endpoint(ws: WebSocket):
@@ -66,6 +75,25 @@ def _get_app():
             _clients.discard(ws)
 
     return _app
+
+
+def _open_folder_dialog() -> str | None:
+    """Open a native macOS folder picker. Returns path or None if cancelled."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            [
+                "osascript", "-e",
+                'set theFolder to choose folder with prompt "Select project workspace"'
+                '\nreturn POSIX path of theFolder'
+            ],
+            capture_output=True, text=True, timeout=120,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip().rstrip("/")
+    except Exception:
+        pass
+    return None
 
 
 def _handle_start_project(msg: dict):

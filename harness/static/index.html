@@ -437,6 +437,21 @@ body {
   background: var(--error);
   color: var(--bg-0);
 }
+.browse-btn {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-1);
+  font-size: 14px;
+  padding: 6px 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+}
+.browse-btn:hover {
+  border-color: var(--border-active);
+  background: var(--bg-3);
+}
 .command-hint {
   font-size: 10px;
   color: var(--text-2);
@@ -518,8 +533,11 @@ body {
     <input class="command-input" id="cmdPrompt" type="text"
            placeholder="Build a collaborative todo app with real-time sync..."
            autofocus>
-    <input class="command-workspace" id="cmdWorkspace" type="text"
-           placeholder="./workspace">
+    <div style="display:flex;gap:4px;align-items:center">
+      <input class="command-workspace" id="cmdWorkspace" type="text"
+             placeholder="./workspace">
+      <button class="browse-btn" onclick="browseFolder()" title="Browse...">&#x1F4C2;</button>
+    </div>
     <button class="command-btn" id="cmdStart" onclick="sendStart()">Launch</button>
   </div>
   <div class="command-hint">Enter a project description and workspace path, then hit Launch or press Enter</div>
@@ -878,6 +896,18 @@ function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 
 // ─── Commands ───────────────────────────────
 let projectRunning = false;
+
+async function browseFolder() {
+  try {
+    const resp = await fetch('/api/browse-folder');
+    const data = await resp.json();
+    if (data.path) {
+      $('#cmdWorkspace').value = data.path;
+    }
+  } catch (e) {
+    console.error('Browse failed:', e);
+  }
+}
 
 function sendStart() {
   const prompt = $('#cmdPrompt').value.trim();
