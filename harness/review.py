@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from harness.claude_session import call_claude, fresh_session_id
+from harness.config import config
 from harness.events import bus
 from harness.prompts.review import FINAL_REVIEW_SYSTEM
 from harness.utils import ensure_orchestrator_dir
@@ -31,7 +32,8 @@ def run_final_review(workspace: str) -> str:
         system_prompt=system_prompt,
         workspace=workspace,
         is_first_turn=True,
-        timeout=900,
+        timeout=config.get_timeout("review"),
+        model=config.get_model("reviewer"),
     )
 
     bus.emit("agent_output", agent="reviewer", text=response)

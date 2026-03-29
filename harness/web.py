@@ -42,6 +42,11 @@ def _get_app():
             return JSONResponse({"path": path})
         return JSONResponse({"path": None})
 
+    @_app.get("/api/config")
+    async def get_config():
+        from harness.config import config
+        return JSONResponse(config.to_dict())
+
     @_app.websocket("/ws")
     async def websocket_endpoint(ws: WebSocket):
         await ws.accept()
@@ -68,6 +73,9 @@ def _get_app():
                     _handle_start_project(msg)
                 elif cmd == "stop_project":
                     _handle_stop_project()
+                elif cmd == "update_config":
+                    _handle_update_config(msg)
+                    await ws.send_json({"type": "config_updated", "config": _get_config_dict()})
 
         except WebSocketDisconnect:
             pass
@@ -75,6 +83,19 @@ def _get_app():
             _clients.discard(ws)
 
     return _app
+
+
+def _handle_update_config(msg: dict):
+    """Update runtime config from web UI."""
+    from harness.config import config
+    data = msg.get("config", {})
+    config.from_dict(data)
+    bus.emit("log", source="Web", message=f"Config updated: {data}")
+
+
+def _get_config_dict() -> dict:
+    from harness.config import config
+    return config.to_dict()
 
 
 def _open_folder_dialog() -> str | None:

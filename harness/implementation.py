@@ -8,6 +8,7 @@ same failures repeat 3 times, we rollback to renegotiation.
 from pathlib import Path
 
 from harness.claude_session import call_claude, fresh_session_id
+from harness.config import config
 from harness.events import bus
 from harness.prompts.implementation import IMPL_GEN_SYSTEM, IMPL_EVAL_SYSTEM
 from harness.utils import git_commit, parse_eval_report, extract_failure_keys, ensure_orchestrator_dir
@@ -62,6 +63,10 @@ def implement_and_evaluate(
     gen_session = fresh_session_id()
     gen_system = IMPL_GEN_SYSTEM.format(done_signal=str(DONE_SIGNAL))
     eval_system = IMPL_EVAL_SYSTEM.format(report_path=str(EVAL_REPORT))
+    gen_model = config.get_model("implementation_generator")
+    gen_timeout = config.get_timeout("implementation")
+    eval_model = config.get_model("implementation_evaluator")
+    eval_timeout = config.get_timeout("evaluation")
 
     # Write contract to disk so agents can also read it via file tools
     contract_path = Path(workspace) / ".orchestrator" / "contract.md"
@@ -94,6 +99,7 @@ def implement_and_evaluate(
                 system_prompt=gen_system,
                 workspace=workspace,
                 is_first_turn=True,
+                model=gen_model, timeout=gen_timeout,
             )
         else:
             gen_prompt = (
@@ -108,6 +114,7 @@ def implement_and_evaluate(
                 system_prompt=gen_system,
                 workspace=workspace,
                 is_first_turn=False,
+                model=gen_model, timeout=gen_timeout,
             )
 
         bus.emit("agent_output", agent="generator", text=gen_response)
@@ -142,6 +149,7 @@ def implement_and_evaluate(
             system_prompt=eval_system,
             workspace=workspace,
             is_first_turn=True,
+            model=eval_model, timeout=eval_timeout,
         )
 
         bus.emit("agent_output", agent="evaluator", text=eval_response)

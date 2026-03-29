@@ -2,7 +2,6 @@
 
 import subprocess
 import uuid
-from pathlib import Path
 
 
 def fresh_session_id() -> str:
@@ -17,6 +16,7 @@ def call_claude(
     is_first_turn: bool = False,
     timeout: int = 600,
     allowed_tools: str | None = None,
+    model: str = "opus",
 ) -> str:
     """Call Claude Code CLI with session support.
 
@@ -28,6 +28,7 @@ def call_claude(
         is_first_turn: If True, creates new session. If False, resumes.
         timeout: Max seconds to wait for response.
         allowed_tools: Comma-separated tool names, or empty string to disable all tools.
+        model: Model to use (e.g. "opus", "sonnet", "haiku").
 
     Returns:
         The text response from Claude.
@@ -37,7 +38,7 @@ def call_claude(
         "-p", prompt,
         "--append-system-prompt", system_prompt,
         "--dangerously-skip-permissions",
-        "--model", "opus",
+        "--model", model,
     ]
 
     if allowed_tools is not None:
@@ -50,7 +51,7 @@ def call_claude(
 
     result = subprocess.run(
         cmd,
-        input="",  # required for --append-system-prompt with --resume
+        input="",
         capture_output=True,
         text=True,
         cwd=workspace,

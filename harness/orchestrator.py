@@ -13,6 +13,33 @@ from harness.review import run_final_review
 from harness.utils import git_init, git_commit, ensure_orchestrator_dir
 
 
+def _extract_deferred_items(contract: str) -> list[str]:
+    """Extract 'Out of Scope' items from a sprint contract.
+
+    Looks for sections like '## Out of Scope' and extracts bullet points.
+    """
+    import re
+    items = []
+
+    # Find "Out of Scope" section
+    match = re.search(
+        r"(?:out of scope|deferred|future sprint)[s]?\s*\n(.*?)(?=\n##|\Z)",
+        contract,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if match:
+        section = match.group(1)
+        for line in section.split("\n"):
+            line = line.strip()
+            # Match bullet points: "- item" or "* item"
+            if line and (line.startswith("-") or line.startswith("*")):
+                item = line.lstrip("-* ").strip()
+                if item and len(item) > 5:
+                    items.append(item)
+
+    return items
+
+
 def run_project(project_description: str, workspace: str, web: bool = True, port: int = 8420):
     """Execute the full Harness Claude pipeline.
 
@@ -64,12 +91,21 @@ def run_project(project_description: str, workspace: str, web: bool = True, port
 
     # ── Execute each sprint ──
     completed_contracts = []
+    deferred_items: list[str] = []  # out-of-scope items carried from previous sprints
     total_sprints = len(sprints)
 
     for sprint in sprints:
         sprint_num = sprint["number"]
         sprint_name = sprint["name"]
         sprint_direction = sprint["description"]
+
+        # Augment direction with deferred items from previous sprints
+        if deferred_items:
+            deferred_text = "\n".join(f"  - {item}" for item in deferred_items)
+            sprint_direction += (
+                f"\n\nDEFERRED FROM PREVIOUS SPRINTS (consider including these "
+                f"if they fit this sprint's scope):\n{deferred_text}"
+            )
 
         bus.emit("sprint_start", sprint=sprint_num, total=total_sprints, name=sprint_name)
 
@@ -81,6 +117,13 @@ def run_project(project_description: str, workspace: str, web: bool = True, port
             sprint_num=sprint_num,
             workspace=workspace,
         )
+
+        # Extract out-of-scope items from this sprint's contract for future sprints
+        new_deferred = _extract_deferred_items(contract)
+        if new_deferred:
+            deferred_items.extend(new_deferred)
+            bus.emit("log", source="Orchestrator",
+                     message=f"Carried {len(new_deferred)} deferred item(s) to future sprints")
 
         # Phase 2: Implement and evaluate
         bus.emit("phase_change", phase="implementation")

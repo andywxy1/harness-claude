@@ -6,6 +6,7 @@
 <title>HARNESS CLAUDE</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
@@ -91,6 +92,116 @@ body {
   50% { opacity: 0.4; }
 }
 
+/* ─── Settings Gear Button ──────────────── */
+.settings-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-1);
+  font-size: 16px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: all 0.15s;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.settings-btn:hover {
+  border-color: var(--border-active);
+  color: var(--text-0);
+  background: var(--bg-2);
+}
+
+/* ─── Settings Modal ────────────────────── */
+.settings-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.65);
+  z-index: 200;
+  align-items: center;
+  justify-content: center;
+}
+.settings-overlay.open { display: flex; }
+
+.settings-modal {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  width: 460px;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+}
+.settings-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.settings-header-title {
+  font-family: var(--sans);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-0);
+}
+.settings-close {
+  background: transparent;
+  border: none;
+  color: var(--text-2);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 3px;
+  transition: all 0.15s;
+}
+.settings-close:hover { color: var(--text-0); background: var(--bg-3); }
+
+.settings-body {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.settings-label {
+  font-size: 11px;
+  color: var(--text-1);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.settings-select {
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-0);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 10px;
+  outline: none;
+  cursor: pointer;
+  min-width: 120px;
+  transition: border-color 0.15s;
+}
+.settings-select:focus { border-color: var(--accent); }
+.settings-hint {
+  font-size: 10px;
+  color: var(--text-2);
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
 /* ─── Sprint Bar ─────────────────────────── */
 .sprint-bar {
   grid-area: sprints;
@@ -129,7 +240,7 @@ body {
   color: var(--text-1);
 }
 .sprint-pip.complete::before {
-  content: "✓";
+  content: "\2713";
   font-size: 9px;
 }
 
@@ -231,36 +342,274 @@ body {
 .content-section { display: none; }
 .content-section.visible { display: block; }
 
-.output-block {
-  background: var(--bg-0);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  padding: 14px 16px;
+/* ─── Chat Bubbles ──────────────────────── */
+.chat-bubble {
+  border-radius: 8px;
+  padding: 14px 18px;
   margin-bottom: 12px;
   font-size: 12px;
   line-height: 1.65;
-  white-space: pre-wrap;
   word-break: break-word;
   max-height: 600px;
   overflow-y: auto;
+  animation: bubbleFadeIn 0.3s ease-out;
+  position: relative;
 }
-.output-block .label {
+@keyframes bubbleFadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.chat-bubble .bubble-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.chat-bubble .bubble-label {
   font-size: 9px;
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-2);
-  margin-bottom: 8px;
-  display: block;
 }
-.output-block.gen { border-left: 2px solid var(--info); }
-.output-block.gen .label { color: var(--info); }
-.output-block.eval { border-left: 2px solid var(--warn); }
-.output-block.eval .label { color: var(--warn); }
-.output-block.contract { border-left: 2px solid var(--accent); }
-.output-block.contract .label { color: var(--accent); }
-.output-block.error { border-left: 2px solid var(--error); }
-.output-block.error .label { color: var(--error); }
+.chat-bubble .bubble-ts {
+  font-size: 9px;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Planner bubble: full-width, green left border */
+.chat-bubble.planner {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  width: 100%;
+}
+.chat-bubble.planner .bubble-label { color: var(--accent); }
+
+/* Generator bubble: left-aligned, blue tinted */
+.chat-bubble.generator {
+  background: #0d1520;
+  border: 1px solid #1a2a40;
+  border-left: 3px solid var(--info);
+  width: 85%;
+  margin-right: auto;
+}
+.chat-bubble.generator .bubble-label { color: var(--info); }
+
+/* Evaluator bubble: right-aligned, amber tinted */
+.chat-bubble.evaluator {
+  background: #18150d;
+  border: 1px solid #3a3018;
+  border-left: none;
+  border-right: 3px solid var(--warn);
+  width: 85%;
+  margin-left: auto;
+}
+.chat-bubble.evaluator .bubble-label { color: var(--warn); }
+
+/* Reviewer bubble: full-width, green border */
+.chat-bubble.reviewer {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  width: 100%;
+}
+.chat-bubble.reviewer .bubble-label { color: var(--accent); }
+
+/* Generic/other agent bubbles */
+.chat-bubble.other {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-2);
+  width: 90%;
+}
+.chat-bubble.other .bubble-label { color: var(--text-1); }
+
+/* Error bubble */
+.chat-bubble.error-bubble {
+  background: #1a0f0f;
+  border: 1px solid var(--error-dim);
+  border-left: 3px solid var(--error);
+  width: 100%;
+}
+.chat-bubble.error-bubble .bubble-label { color: var(--error); }
+
+/* ─── Markdown Rendering in Bubbles ─────── */
+.chat-bubble .md-body h1 { font-size: 1.4em; font-weight: 600; margin: 12px 0 6px; color: var(--text-0); }
+.chat-bubble .md-body h2 { font-size: 1.2em; font-weight: 600; margin: 10px 0 5px; color: var(--text-0); }
+.chat-bubble .md-body h3 { font-size: 1.05em; font-weight: 600; margin: 8px 0 4px; color: var(--text-0); }
+.chat-bubble .md-body h4,
+.chat-bubble .md-body h5,
+.chat-bubble .md-body h6 { font-size: 1em; font-weight: 600; margin: 6px 0 3px; color: var(--text-1); }
+.chat-bubble .md-body p { margin: 6px 0; }
+.chat-bubble .md-body ul,
+.chat-bubble .md-body ol { margin: 6px 0; padding-left: 20px; }
+.chat-bubble .md-body li { margin: 2px 0; }
+.chat-bubble .md-body code {
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-family: var(--mono);
+  font-size: 0.92em;
+}
+.chat-bubble .md-body pre {
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 14px;
+  margin: 8px 0;
+  overflow-x: auto;
+  font-size: 0.92em;
+  line-height: 1.5;
+}
+.chat-bubble .md-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+}
+.chat-bubble .md-body blockquote {
+  border-left: 2px solid var(--border-active);
+  padding-left: 12px;
+  color: var(--text-1);
+  margin: 8px 0;
+}
+.chat-bubble .md-body strong { color: var(--text-0); }
+.chat-bubble .md-body a { color: var(--info); text-decoration: none; }
+.chat-bubble .md-body a:hover { text-decoration: underline; }
+.chat-bubble .md-body hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 10px 0;
+}
+.chat-bubble .md-body table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 0.92em;
+}
+.chat-bubble .md-body th,
+.chat-bubble .md-body td {
+  border: 1px solid var(--border);
+  padding: 4px 8px;
+}
+.chat-bubble .md-body th {
+  background: var(--bg-2);
+  font-weight: 600;
+}
+
+/* ─── Contract Section ──────────────────── */
+.contract-block {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  animation: bubbleFadeIn 0.3s ease-out;
+}
+.contract-block .contract-header {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.contract-block .contract-sprint-badge {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  padding: 1px 7px;
+  font-size: 9px;
+  color: var(--accent);
+}
+.contract-block .md-body { font-size: 12px; line-height: 1.65; }
+
+/* ─── Eval Report Section ───────────────── */
+.eval-block {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--warn);
+  border-radius: 6px;
+  padding: 16px 20px;
+  margin-bottom: 14px;
+  animation: bubbleFadeIn 0.3s ease-out;
+}
+.eval-block .eval-header {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--warn);
+  margin-bottom: 12px;
+}
+.eval-checklist {
+  margin-bottom: 14px;
+  padding: 12px 16px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.eval-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+.eval-check-item .check-icon {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+}
+.eval-check-item .check-icon.pass {
+  background: var(--accent-dim);
+  color: var(--accent);
+}
+.eval-check-item .check-icon.fail {
+  background: var(--error-dim);
+  color: var(--error);
+}
+.eval-check-item .check-text { color: var(--text-1); }
+.eval-check-item .check-text.fail { color: var(--error); }
+
+.severity-badge {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 3px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin-right: 4px;
+}
+.severity-badge.p0 { background: var(--error-dim); color: var(--error); border: 1px solid var(--error); }
+.severity-badge.p1 { background: #4a2000; color: #ff8c00; border: 1px solid #ff8c00; }
+.severity-badge.p2 { background: var(--warn-dim); color: var(--warn); border: 1px solid var(--warn); }
+.severity-badge.p3 { background: var(--info-dim); color: var(--info); border: 1px solid var(--info); }
+
+.eval-issues {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+.eval-issue-item {
+  padding: 4px 0;
+  font-size: 11px;
+  color: var(--text-1);
+  line-height: 1.5;
+}
+.eval-block .md-body { font-size: 12px; line-height: 1.65; }
 
 .empty-state {
   color: var(--text-2);
@@ -455,7 +804,30 @@ body {
 .command-hint {
   font-size: 10px;
   color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
+.new-project-btn {
+  background: var(--bg-2);
+  border: 1px solid var(--border-active);
+  border-radius: 4px;
+  color: var(--text-1);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 5px 14px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.new-project-btn:hover {
+  background: var(--bg-3);
+  color: var(--text-0);
+  border-color: var(--accent);
+}
+.new-project-btn.hidden { display: none; }
 
 /* ─── Running Controls (in header) ───────── */
 .header-controls {
@@ -488,9 +860,71 @@ body {
 
 <div class="conn-banner" id="connBanner"></div>
 
+<!-- Settings Modal Overlay -->
+<div class="settings-overlay" id="settingsOverlay">
+  <div class="settings-modal">
+    <div class="settings-header">
+      <span class="settings-header-title">Model Configuration</span>
+      <button class="settings-close" id="settingsClose">&times;</button>
+    </div>
+    <div class="settings-body">
+      <div class="settings-row">
+        <span class="settings-label">Planner</span>
+        <select class="settings-select" id="cfg-planner" data-role="planner">
+          <option value="opus">opus</option>
+          <option value="sonnet">sonnet</option>
+          <option value="haiku">haiku</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Negotiation Generator</span>
+        <select class="settings-select" id="cfg-neg-generator" data-role="negotiation_generator">
+          <option value="opus">opus</option>
+          <option value="sonnet">sonnet</option>
+          <option value="haiku">haiku</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Negotiation Evaluator</span>
+        <select class="settings-select" id="cfg-neg-evaluator" data-role="negotiation_evaluator">
+          <option value="opus">opus</option>
+          <option value="sonnet">sonnet</option>
+          <option value="haiku">haiku</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Implementation Generator</span>
+        <select class="settings-select" id="cfg-impl-generator" data-role="implementation_generator">
+          <option value="opus">opus</option>
+          <option value="sonnet">sonnet</option>
+          <option value="haiku">haiku</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Implementation Evaluator</span>
+        <select class="settings-select" id="cfg-impl-evaluator" data-role="implementation_evaluator">
+          <option value="opus">opus</option>
+          <option value="sonnet">sonnet</option>
+          <option value="haiku">haiku</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Reviewer</span>
+        <select class="settings-select" id="cfg-reviewer" data-role="reviewer">
+          <option value="opus">opus</option>
+          <option value="sonnet">sonnet</option>
+          <option value="haiku">haiku</option>
+        </select>
+      </div>
+      <div class="settings-hint">Changes are saved automatically and sent to the orchestrator.</div>
+    </div>
+  </div>
+</div>
+
 <header class="header">
   <div class="header-title">HARNESS <span>CLAUDE</span></div>
   <div class="header-controls">
+    <button class="settings-btn" id="settingsBtn" title="Settings">&#9881;</button>
     <button class="stop-btn hidden" id="stopBtn" onclick="sendStop()">Stop</button>
     <div class="header-status">
       <div class="status-dot" id="statusDot"></div>
@@ -540,7 +974,10 @@ body {
     </div>
     <button class="command-btn" id="cmdStart" onclick="sendStart()">Launch</button>
   </div>
-  <div class="command-hint">Enter a project description and workspace path, then hit Launch or press Enter</div>
+  <div class="command-hint">
+    <span>Enter a project description and workspace path, then hit Launch or press Enter</span>
+    <button class="new-project-btn hidden" id="newProjectBtn" onclick="resetProject()">New Project</button>
+  </div>
 </div>
 
 <footer class="log-panel" id="logPanel" style="display:none">
@@ -555,6 +992,26 @@ body {
 const $ = s => document.querySelector(s);
 const $$ = s => document.querySelectorAll(s);
 
+// ─── Markdown Setup ────────────────────────
+if (typeof marked !== 'undefined') {
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+  });
+}
+
+function renderMarkdown(text) {
+  if (!text) return '';
+  if (typeof marked !== 'undefined' && marked.parse) {
+    try {
+      return marked.parse(text);
+    } catch (e) {
+      return escHtml(text);
+    }
+  }
+  return escHtml(text);
+}
+
 // ─── State ──────────────────────────────────
 const S = {
   connected: false,
@@ -567,6 +1024,7 @@ const S = {
   logEvents: [],
   activeTab: 'output',
   currentSprint: 0,
+  projectCompleted: false,
 };
 
 // ─── WebSocket ──────────────────────────────
@@ -669,7 +1127,7 @@ function handleEvent(ev) {
       break;
 
     case 'rollback':
-      addSubItem('implementation', 'ROLLBACK → renegotiation', 'fail');
+      addSubItem('implementation', 'ROLLBACK \u2192 renegotiation', 'fail');
       break;
 
     case 'done_signal_missing':
@@ -688,6 +1146,7 @@ function handleEvent(ev) {
     case 'project_complete':
       S.state.phase = 'complete';
       S.state.status = 'complete';
+      S.projectCompleted = true;
       updateStatus();
       break;
   }
@@ -702,6 +1161,7 @@ function renderAll() {
   renderContracts();
   renderEvalReports();
   updateStatus();
+  updateNewProjectBtn();
 }
 
 function renderSprints() {
@@ -767,6 +1227,26 @@ function renderSidebar() {
   sb.innerHTML = html;
 }
 
+function getBubbleClass(agent) {
+  if (!agent) return 'other';
+  const a = agent.toLowerCase();
+  if (a.includes('planner') || a === 'planner') return 'planner';
+  if (a.includes('generator')) return 'generator';
+  if (a.includes('evaluator')) return 'evaluator';
+  if (a.includes('reviewer') || a === 'reviewer') return 'reviewer';
+  return 'other';
+}
+
+function getBubbleLabel(agent) {
+  if (!agent) return 'Agent';
+  const a = agent.toLowerCase();
+  if (a.includes('planner')) return 'Planner';
+  if (a.includes('generator')) return 'Generator';
+  if (a.includes('evaluator')) return 'Evaluator';
+  if (a.includes('reviewer')) return 'Reviewer';
+  return capitalize(agent);
+}
+
 function renderOutputs() {
   const sec = $('#sec-output');
   if (!S.outputs.length) {
@@ -774,12 +1254,20 @@ function renderOutputs() {
     return;
   }
   let html = '';
-  // Show last 20 outputs
-  const recent = S.outputs.slice(-20);
+  // Show last 30 outputs
+  const recent = S.outputs.slice(-30);
   for (const o of recent) {
-    const cls = o.agent === 'generator' ? 'gen' : o.agent === 'evaluator' ? 'eval' : o.agent === 'planner' ? 'contract' : '';
+    const bubbleCls = getBubbleClass(o.agent);
+    const label = getBubbleLabel(o.agent);
     const ts = o.ts ? o.ts.substring(11, 19) : '';
-    html += `<div class="output-block ${cls}"><span class="label">${o.agent} ${ts}</span>${escHtml(o.text)}</div>`;
+    const mdContent = renderMarkdown(o.text);
+    html += `<div class="chat-bubble ${bubbleCls}">
+      <div class="bubble-header">
+        <span class="bubble-label">${label}</span>
+        <span class="bubble-ts">${ts}</span>
+      </div>
+      <div class="md-body">${mdContent}</div>
+    </div>`;
   }
   sec.innerHTML = html;
   sec.scrollTop = sec.scrollHeight;
@@ -793,9 +1281,55 @@ function renderContracts() {
   }
   let html = '';
   for (const c of S.contracts) {
-    html += `<div class="output-block contract"><span class="label">Sprint ${c.sprint} Contract</span>${escHtml(c.text)}</div>`;
+    const mdContent = renderMarkdown(c.text);
+    html += `<div class="contract-block">
+      <div class="contract-header">
+        <span>Contract</span>
+        <span class="contract-sprint-badge">Sprint ${c.sprint}</span>
+      </div>
+      <div class="md-body">${mdContent}</div>
+    </div>`;
   }
   sec.innerHTML = html;
+}
+
+function parseEvalChecklist(text) {
+  if (!text) return { checks: [], issues: [], hasChecks: false };
+  const lines = text.split('\n');
+  const checks = [];
+  const issues = [];
+  let hasChecks = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    // Match lines with PASS or FAIL
+    const passMatch = trimmed.match(/^[*\-\[\]\s]*(?:\[?x?\]?\s*)?(.*?)\s*[:.\-\u2014]\s*(PASS)/i);
+    const failMatch = trimmed.match(/^[*\-\[\]\s]*(?:\[?x?\]?\s*)?(.*?)\s*[:.\-\u2014]\s*(FAIL)/i);
+    // Also match "PASS: description" or "FAIL: description"
+    const passAlt = trimmed.match(/^\s*(PASS)\s*[:.\-\u2014]\s*(.*)/i);
+    const failAlt = trimmed.match(/^\s*(FAIL)\s*[:.\-\u2014]\s*(.*)/i);
+
+    if (passMatch) {
+      checks.push({ status: 'pass', text: passMatch[1] || trimmed });
+      hasChecks = true;
+    } else if (failMatch) {
+      checks.push({ status: 'fail', text: failMatch[1] || trimmed });
+      hasChecks = true;
+    } else if (passAlt) {
+      checks.push({ status: 'pass', text: passAlt[2] || trimmed });
+      hasChecks = true;
+    } else if (failAlt) {
+      checks.push({ status: 'fail', text: failAlt[2] || trimmed });
+      hasChecks = true;
+    }
+
+    // Detect P0/P1/P2/P3 severity lines
+    const sevMatch = trimmed.match(/\b(P[0-3])\b/);
+    if (sevMatch) {
+      issues.push({ severity: sevMatch[1].toLowerCase(), text: trimmed });
+    }
+  }
+  return { checks, issues, hasChecks };
 }
 
 function renderEvalReports() {
@@ -806,7 +1340,40 @@ function renderEvalReports() {
   }
   let html = '';
   for (const r of S.evalReports) {
-    html += `<div class="output-block eval"><span class="label">Sprint ${r.sprint} Cycle ${r.cycle}</span>${escHtml(r.text)}</div>`;
+    const parsed = parseEvalChecklist(r.text);
+    const mdContent = renderMarkdown(r.text);
+
+    html += `<div class="eval-block">
+      <div class="eval-header">Sprint ${r.sprint} &mdash; Cycle ${r.cycle}</div>`;
+
+    // Render checklist if PASS/FAIL lines found
+    if (parsed.hasChecks) {
+      html += '<div class="eval-checklist">';
+      for (const ch of parsed.checks) {
+        const icon = ch.status === 'pass' ? '\u2713' : '\u2717';
+        html += `<div class="eval-check-item">
+          <span class="check-icon ${ch.status}">${icon}</span>
+          <span class="check-text ${ch.status === 'fail' ? 'fail' : ''}">${escHtml(ch.text)}</span>
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    // Render severity issues if found
+    if (parsed.issues.length) {
+      html += '<div class="eval-issues">';
+      for (const iss of parsed.issues) {
+        html += `<div class="eval-issue-item">
+          <span class="severity-badge ${iss.severity}">${iss.severity.toUpperCase()}</span>
+          ${escHtml(iss.text)}
+        </div>`;
+      }
+      html += '</div>';
+    }
+
+    // Full report as markdown
+    html += `<div class="md-body">${mdContent}</div>
+    </div>`;
   }
   sec.innerHTML = html;
 }
@@ -829,12 +1396,12 @@ function updateStatus() {
     text.textContent = 'Project complete';
   } else if (agent) {
     dot.classList.add('active');
-    text.textContent = `${capitalize(phase)} — ${agent} working`;
+    text.textContent = `${capitalize(phase)} \u2014 ${agent} working`;
   } else if (phase !== 'idle') {
     dot.classList.add('active');
     text.textContent = capitalize(phase);
   } else {
-    text.textContent = 'Connected — idle';
+    text.textContent = 'Connected \u2014 idle';
   }
 }
 
@@ -867,7 +1434,7 @@ function logMessage(ev) {
     case 'negotiation_round': return `R${ev.round} ${ev.speaker} ${ev.agreed ? 'AGREED' : ''}`;
     case 'contract_agreed': return 'Contract finalized';
     case 'impl_cycle': return `C${ev.cycle} ${ev.stage}`;
-    case 'eval_result': return `${ev.status} — ${ev.reason || ''}`;
+    case 'eval_result': return `${ev.status} \u2014 ${ev.reason || ''}`;
     case 'rollback': return ev.reason || 'Renegotiating';
     case 'done_signal_missing': return 'Generator did not create .done';
     case 'project_complete': return 'Done';
@@ -922,6 +1489,8 @@ function sendStart() {
   }));
 
   projectRunning = true;
+  S.projectCompleted = false;
+  updateNewProjectBtn();
   updateLayout();
 }
 
@@ -936,6 +1505,15 @@ $('#cmdPrompt').addEventListener('keydown', (e) => {
     sendStart();
   }
 });
+
+function updateNewProjectBtn() {
+  const btn = $('#newProjectBtn');
+  if (S.projectCompleted && !projectRunning) {
+    btn.classList.remove('hidden');
+  } else {
+    btn.classList.add('hidden');
+  }
+}
 
 function updateLayout() {
   const cmdBar = $('#commandBar');
@@ -978,17 +1556,24 @@ function updateLayout() {
       "sidebar main"
       "command command"`;
   }
+
+  updateNewProjectBtn();
 }
 
 function resetProject() {
   projectRunning = false;
+  S.projectCompleted = false;
   S.outputs = [];
   S.contracts = [];
   S.evalReports = [];
   S.sprints = [];
   S.phases = [];
+  S.logEvents = [];
   S.currentSprint = 0;
   S.state = {};
+  // Clear log body
+  $('#logBody').innerHTML = '';
+  $('#logCount').textContent = '0 events';
   resetPhases();
   renderAll();
   updateLayout();
@@ -1008,6 +1593,7 @@ handleEvent = function(ev) {
   // Project ended (success or error)
   if (ev.type === 'project_complete' || ev.type === 'error') {
     projectRunning = false;
+    S.projectCompleted = true;
     updateLayout();
     // Show log panel alongside command bar after completion
     $('#logPanel').style.display = '';
@@ -1018,6 +1604,7 @@ handleEvent = function(ev) {
       "sidebar main"
       "command command"
       "log log"`;
+    updateNewProjectBtn();
   }
 
   // Stop acknowledged
@@ -1035,10 +1622,64 @@ handleEvent = function(ev) {
   }
 };
 
+// ─── Settings Panel ─────────────────────────
+
+$('#settingsBtn').addEventListener('click', () => {
+  $('#settingsOverlay').classList.add('open');
+});
+
+$('#settingsClose').addEventListener('click', () => {
+  $('#settingsOverlay').classList.remove('open');
+});
+
+$('#settingsOverlay').addEventListener('click', (e) => {
+  if (e.target === $('#settingsOverlay')) {
+    $('#settingsOverlay').classList.remove('open');
+  }
+});
+
+// Auto-save on change
+$$('.settings-select').forEach(sel => {
+  sel.addEventListener('change', () => {
+    sendConfigUpdate();
+  });
+});
+
+function sendConfigUpdate() {
+  const models = {};
+  $$('.settings-select').forEach(sel => {
+    models[sel.dataset.role] = sel.value;
+  });
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({
+      command: 'update_config',
+      config: { models }
+    }));
+  }
+}
+
+async function loadConfig() {
+  try {
+    const resp = await fetch('/api/config');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    if (data.models) {
+      for (const [role, model] of Object.entries(data.models)) {
+        const sel = document.querySelector(`.settings-select[data-role="${role}"]`);
+        if (sel) sel.value = model;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load config:', e);
+  }
+}
+
 // ─── Init ───────────────────────────────────
 resetPhases();
 updateLayout();
 connect();
+loadConfig();
 </script>
 </body>
 </html>

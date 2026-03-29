@@ -1,6 +1,7 @@
 """Planner agent — runs once to produce a sprint plan from a project description."""
 
 from harness.claude_session import call_claude, fresh_session_id
+from harness.config import config
 from harness.events import bus
 from harness.prompts.planner import PLANNER_SYSTEM
 from harness.utils import parse_sprint_plan
@@ -31,7 +32,8 @@ def run_planner(project_description: str, workspace: str) -> tuple[str, list[dic
         system_prompt=PLANNER_SYSTEM,
         workspace=workspace,
         is_first_turn=True,
-        timeout=900,  # longer timeout — planner may research online
+        timeout=config.get_timeout("planner"),
+        model=config.get_model("planner"),
     )
 
     bus.emit("agent_output", agent="planner", text=response)
