@@ -354,6 +354,119 @@ body {
   transition: opacity 0.3s;
 }
 .conn-banner.disconnected { opacity: 1; }
+
+/* ─── Command Bar ────────────────────────── */
+.command-bar {
+  grid-area: log;
+  background: var(--bg-1);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  gap: 14px;
+}
+.command-bar.hidden { display: none; }
+.command-prompt-label {
+  font-family: var(--sans);
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-1);
+  letter-spacing: 0.02em;
+}
+.command-row {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  max-width: 700px;
+}
+.command-input {
+  flex: 1;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-0);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 10px 14px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.command-input:focus { border-color: var(--accent); }
+.command-input::placeholder { color: var(--text-2); }
+.command-workspace {
+  width: 220px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-1);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 10px 12px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.command-workspace:focus { border-color: var(--border-active); }
+.command-workspace::placeholder { color: var(--text-2); }
+.command-btn {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 10px 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+.command-btn:hover {
+  background: var(--accent);
+  color: var(--bg-0);
+}
+.command-btn.stop {
+  background: var(--error-dim);
+  border-color: var(--error);
+  color: var(--error);
+}
+.command-btn.stop:hover {
+  background: var(--error);
+  color: var(--bg-0);
+}
+.command-hint {
+  font-size: 10px;
+  color: var(--text-2);
+}
+
+/* ─── Running Controls (in header) ───────── */
+.header-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.stop-btn {
+  background: transparent;
+  border: 1px solid var(--error);
+  border-radius: 3px;
+  color: var(--error);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 4px 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.stop-btn:hover {
+  background: var(--error);
+  color: var(--bg-0);
+}
+.stop-btn.hidden { display: none; }
 </style>
 </head>
 <body>
@@ -362,9 +475,12 @@ body {
 
 <header class="header">
   <div class="header-title">HARNESS <span>CLAUDE</span></div>
-  <div class="header-status">
-    <div class="status-dot" id="statusDot"></div>
-    <span id="statusText">Connecting...</span>
+  <div class="header-controls">
+    <button class="stop-btn hidden" id="stopBtn" onclick="sendStop()">Stop</button>
+    <div class="header-status">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Connecting...</span>
+    </div>
   </div>
 </header>
 
@@ -396,7 +512,20 @@ body {
   </div>
 </main>
 
-<footer class="log-panel">
+<div class="command-bar" id="commandBar">
+  <div class="command-prompt-label">What do you want to build?</div>
+  <div class="command-row">
+    <input class="command-input" id="cmdPrompt" type="text"
+           placeholder="Build a collaborative todo app with real-time sync..."
+           autofocus>
+    <input class="command-workspace" id="cmdWorkspace" type="text"
+           placeholder="./workspace">
+    <button class="command-btn" id="cmdStart" onclick="sendStart()">Launch</button>
+  </div>
+  <div class="command-hint">Enter a project description and workspace path, then hit Launch or press Enter</div>
+</div>
+
+<footer class="log-panel" id="logPanel" style="display:none">
   <div class="log-header">
     <span class="log-header-title">Event Log</span>
     <span class="log-count" id="logCount">0 events</span>
@@ -747,8 +876,72 @@ function escHtml(s) {
 }
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : ''; }
 
+// ─── Commands ───────────────────────────────
+let projectRunning = false;
+
+function sendStart() {
+  const prompt = $('#cmdPrompt').value.trim();
+  const workspace = $('#cmdWorkspace').value.trim() || './workspace';
+  if (!prompt) { $('#cmdPrompt').focus(); return; }
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+
+  ws.send(JSON.stringify({
+    command: 'start_project',
+    prompt: prompt,
+    workspace: workspace,
+  }));
+
+  projectRunning = true;
+  updateLayout();
+}
+
+function sendStop() {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  ws.send(JSON.stringify({ command: 'stop_project' }));
+}
+
+$('#cmdPrompt').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendStart();
+  }
+});
+
+function updateLayout() {
+  const cmdBar = $('#commandBar');
+  const logPanel = $('#logPanel');
+  const stopBtn = $('#stopBtn');
+
+  if (projectRunning) {
+    cmdBar.classList.add('hidden');
+    logPanel.style.display = '';
+    stopBtn.classList.remove('hidden');
+    document.body.style.gridTemplateRows = '48px 36px 1fr 200px';
+  } else {
+    cmdBar.classList.remove('hidden');
+    logPanel.style.display = 'none';
+    stopBtn.classList.add('hidden');
+    document.body.style.gridTemplateRows = '48px 36px 1fr 160px';
+  }
+}
+
+// Wrap handleEvent to detect project lifecycle
+const _origHandleEvent = handleEvent;
+handleEvent = function(ev) {
+  _origHandleEvent(ev);
+  if (ev.type === 'phase_change' && !projectRunning) {
+    projectRunning = true;
+    updateLayout();
+  }
+  if (ev.type === 'project_complete') {
+    projectRunning = false;
+    updateLayout();
+  }
+};
+
 // ─── Init ───────────────────────────────────
 resetPhases();
+updateLayout();
 connect();
 </script>
 </body>
