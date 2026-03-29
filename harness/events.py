@@ -51,11 +51,13 @@ class EventBus:
         # Update internal state based on event type
         self._update_state(event)
 
-        # Store in history
-        self._history.append(event)
+        # Store in history (skip high-frequency chunk events)
+        if event_type != "agent_chunk":
+            self._history.append(event)
 
-        # Console output
-        self._print_event(event)
+        # Console output (skip chunks — they'd flood the terminal)
+        if event_type != "agent_chunk":
+            self._print_event(event)
 
         # Notify subscribers
         with self._lock:
@@ -142,3 +144,28 @@ class EventBus:
 
 # Global singleton
 bus = EventBus()
+
+
+def make_stream_callback(agent: str):
+    """Create an on_chunk callback that emits agent_chunk events."""
+    def on_chunk(text: str):
+        bus.emit("agent_chunk", agent=agent, text=text)
+    return on_chunk
+
+
+def handle_streaming_result(result, agent: str) -> str:
+    """Process the return value from a streaming call_claude call.
+
+    Emits usage event if available, emits agent_output with full text,
+    and returns the text string.
+    """
+    if isinstance(result, dict):
+        text = result.get("text", "")
+        usage = result.get("usage")
+        if usage:
+            bus.emit("usage", agent=agent, **{k: v for k, v in usage.items() if v is not None})
+        bus.emit("agent_output", agent=agent, text=text)
+        return text
+    else:
+        bus.emit("agent_output", agent=agent, text=result)
+        return result

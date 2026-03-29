@@ -9,7 +9,7 @@ from pathlib import Path
 
 from harness.claude_session import call_claude, fresh_session_id
 from harness.config import config
-from harness.events import bus
+from harness.events import bus, make_stream_callback, handle_streaming_result
 from harness.prompts.implementation import IMPL_GEN_SYSTEM, IMPL_EVAL_SYSTEM
 from harness.utils import git_commit, parse_eval_report, extract_failure_keys, ensure_orchestrator_dir
 from harness.negotiation import negotiate_contract
@@ -93,13 +93,14 @@ def implement_and_evaluate(
                 "3. Review your own work\n"
                 "4. Create the .done signal file when all tests pass"
             )
-            gen_response = call_claude(
+            result = call_claude(
                 prompt=gen_prompt,
                 session_id=gen_session,
                 system_prompt=gen_system,
                 workspace=workspace,
                 is_first_turn=True,
                 model=gen_model, timeout=gen_timeout,
+                on_chunk=make_stream_callback("generator"),
             )
         else:
             gen_prompt = (
@@ -108,16 +109,17 @@ def implement_and_evaluate(
                 "Fix the issues above. Review your code. Run all tests again. "
                 "Only create the .done signal when all tests pass."
             )
-            gen_response = call_claude(
+            result = call_claude(
                 prompt=gen_prompt,
                 session_id=gen_session,
                 system_prompt=gen_system,
                 workspace=workspace,
                 is_first_turn=False,
                 model=gen_model, timeout=gen_timeout,
+                on_chunk=make_stream_callback("generator"),
             )
 
-        bus.emit("agent_output", agent="generator", text=gen_response)
+        gen_response = handle_streaming_result(result, "generator")
         bus.emit("agent_done", agent="generator")
         git_commit(workspace, f"Sprint {sprint_num} cycle {cycle} — generator")
 
@@ -139,7 +141,7 @@ def implement_and_evaluate(
         bus.emit("agent_start", agent="evaluator")
 
         eval_session = fresh_session_id()
-        eval_response = call_claude(
+        result = call_claude(
             prompt=(
                 f"## Sprint Contract\n{contract}\n\n"
                 "Evaluate the implementation against this contract. "
@@ -150,9 +152,10 @@ def implement_and_evaluate(
             workspace=workspace,
             is_first_turn=True,
             model=eval_model, timeout=eval_timeout,
+            on_chunk=make_stream_callback("evaluator"),
         )
 
-        bus.emit("agent_output", agent="evaluator", text=eval_response)
+        eval_response = handle_streaming_result(result, "evaluator")
         bus.emit("agent_done", agent="evaluator")
 
         # Read eval report
@@ -190,7 +193,6 @@ def implement_and_evaluate(
                 workspace=workspace,
             )
 
-            # Reset for fresh implementation attempt
             gen_session = fresh_session_id()
             cycle = 0
             failure_tracker.clear()

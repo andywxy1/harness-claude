@@ -2,31 +2,26 @@
 
 from harness.claude_session import call_claude, fresh_session_id
 from harness.config import config
-from harness.events import bus
+from harness.events import bus, make_stream_callback, handle_streaming_result
 from harness.prompts.planner import PLANNER_SYSTEM
 from harness.utils import parse_sprint_plan
 
 
 def run_planner(project_description: str, workspace: str) -> tuple[str, list[dict]]:
-    """Generate a sprint plan from a project description.
-
-    Calls Claude once with the project description and parses the
-    response into a vision statement and list of sprint specs.
-    """
+    """Generate a sprint plan from a project description."""
     bus.emit("agent_start", agent="planner")
 
     session_id = fresh_session_id()
 
     prompt = (
         "Generate a sprint plan for the following project. "
-        "Do NOT explore the codebase. Do NOT use any tools. "
-        "ONLY output the sprint plan in the specified format.\n\n"
+        "You may research online if needed, but your response MUST end with "
+        "the sprint plan between ---BEGIN SPRINT PLAN--- and ---END SPRINT PLAN--- markers.\n\n"
         f"PROJECT: {project_description}\n\n"
-        "Output the sprint plan now, starting with ---BEGIN SPRINT PLAN--- "
-        "and ending with ---END SPRINT PLAN---."
+        "Output the sprint plan now."
     )
 
-    response = call_claude(
+    result = call_claude(
         prompt=prompt,
         session_id=session_id,
         system_prompt=PLANNER_SYSTEM,
@@ -34,9 +29,10 @@ def run_planner(project_description: str, workspace: str) -> tuple[str, list[dic
         is_first_turn=True,
         timeout=config.get_timeout("planner"),
         model=config.get_model("planner"),
+        on_chunk=make_stream_callback("planner"),
     )
 
-    bus.emit("agent_output", agent="planner", text=response)
+    response = handle_streaming_result(result, "planner")
     bus.emit("agent_done", agent="planner")
 
     vision, sprints = parse_sprint_plan(response)

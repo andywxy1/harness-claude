@@ -4,7 +4,7 @@ from pathlib import Path
 
 from harness.claude_session import call_claude, fresh_session_id
 from harness.config import config
-from harness.events import bus
+from harness.events import bus, make_stream_callback, handle_streaming_result
 from harness.prompts.review import FINAL_REVIEW_SYSTEM
 from harness.utils import ensure_orchestrator_dir
 
@@ -19,7 +19,7 @@ def run_final_review(workspace: str) -> str:
 
     bus.emit("agent_start", agent="reviewer")
 
-    response = call_claude(
+    result = call_claude(
         prompt=(
             "All sprints are complete. Review the ENTIRE codebase.\n\n"
             "1. Run the full test suite\n"
@@ -34,9 +34,10 @@ def run_final_review(workspace: str) -> str:
         is_first_turn=True,
         timeout=config.get_timeout("review"),
         model=config.get_model("reviewer"),
+        on_chunk=make_stream_callback("reviewer"),
     )
 
-    bus.emit("agent_output", agent="reviewer", text=response)
+    response = handle_streaming_result(result, "reviewer")
     bus.emit("agent_done", agent="reviewer")
 
     if report_path.exists():

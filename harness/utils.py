@@ -36,29 +36,39 @@ def parse_eval_report(report: str) -> tuple[str, str]:
     """
     upper = report.upper()
 
-    # Check for contract test failures
+    # Check for P0/P1 blockers anywhere in report
+    if "[P0" in report or "P0 BLOCKER" in upper or "P0:" in upper:
+        return "FAIL", "P0 blocker found"
+    if "[P1" in report or "P1 MAJOR" in upper or "P1:" in upper:
+        return "FAIL", "P1 major issues found"
+
+    # Check for explicit FAIL markers
     if "STATUS: FAIL" in upper:
         return "FAIL", "Contract tests failing"
 
-    # Check for P0/P1 blockers
-    if "[P0" in report:
-        return "FAIL", "P0 blocker found"
-    if "[P1" in report:
-        return "FAIL", "P1 major issues found"
+    # Check for verdict/assessment sections — flexible matching
+    verdict_patterns = [
+        r"(?:overall|final)\s*(?:verdict|assessment|decision)[:\s|]*[^\n]*?(PASS|FAIL)",
+        r"(?:PASS|FAIL)\s*[—–-]\s*(?:all|do not|ready|not ready)",
+        r"\*\*(?:PASS|FAIL)\*\*",
+    ]
+    for pattern in verdict_patterns:
+        match = re.search(pattern, report, re.IGNORECASE)
+        if match:
+            text = match.group(0).upper()
+            if "FAIL" in text:
+                return "FAIL", "Evaluator verdict: FAIL"
+            if "PASS" in text:
+                return "PASS", "All tests pass, product acceptable"
 
-    # Check for explicit overall pass
-    # Look for PASS in the overall assessment section
-    assessment_match = re.search(
-        r"overall assessment[:\s]*\n?\s*(PASS|FAIL)",
-        report,
-        re.IGNORECASE,
-    )
-    if assessment_match:
-        verdict = assessment_match.group(1).upper()
-        if verdict == "PASS":
-            return "PASS", "All tests pass, product acceptable"
-        else:
-            return "FAIL", "Evaluator overall assessment: FAIL"
+    # Count PASS/FAIL occurrences as last resort
+    fail_count = upper.count("❌ FAIL") + upper.count("STATUS: FAIL")
+    pass_count = upper.count("✅ PASS") + upper.count("STATUS: PASS")
+
+    if fail_count > 0:
+        return "FAIL", f"Found {fail_count} failing item(s)"
+    if pass_count > 0 and fail_count == 0:
+        return "PASS", "All items passing"
 
     return "FAIL", "Evaluator did not explicitly PASS"
 

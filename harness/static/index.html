@@ -863,6 +863,87 @@ body {
   color: var(--bg-0);
 }
 .stop-btn.hidden { display: none; }
+
+/* ─── Typing Indicator ─────────────────── */
+.typing-indicator {
+  display: inline-block;
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: 4px;
+  vertical-align: middle;
+  animation: typingPulse 1s ease-in-out infinite;
+}
+@keyframes typingPulse {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(0.7); }
+}
+
+/* ─── Usage Tracker ────────────────────── */
+.usage-tracker {
+  font-size: 10px;
+  color: var(--text-1);
+  font-family: var(--mono);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.usage-tracker .usage-cost {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+/* ─── Settings Number Input ────────────── */
+.settings-number {
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-0);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 10px;
+  outline: none;
+  width: 80px;
+  transition: border-color 0.15s;
+}
+.settings-number:focus { border-color: var(--accent); }
+
+/* ─── Settings Section Divider ─────────── */
+.settings-divider {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+/* ─── Settings Save Button ─────────────── */
+.settings-save-btn {
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 8px 20px;
+  cursor: pointer;
+  transition: all 0.15s;
+  width: 100%;
+  margin-top: 4px;
+}
+.settings-save-btn:hover {
+  background: var(--accent);
+  color: var(--bg-0);
+}
+.settings-save-btn.saved {
+  background: var(--accent);
+  color: var(--bg-0);
+}
 </style>
 </head>
 <body>
@@ -925,7 +1006,29 @@ body {
           <option value="haiku">haiku</option>
         </select>
       </div>
-      <div class="settings-hint">Changes are saved automatically and sent to the orchestrator.</div>
+      <div class="settings-divider">Timeouts (seconds)</div>
+      <div class="settings-row">
+        <span class="settings-label">Planner</span>
+        <input class="settings-number" id="cfg-timeout-planner" type="number" min="0" step="1" placeholder="300" data-timeout="planner">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Negotiation</span>
+        <input class="settings-number" id="cfg-timeout-negotiation" type="number" min="0" step="1" placeholder="300" data-timeout="negotiation">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Implementation</span>
+        <input class="settings-number" id="cfg-timeout-implementation" type="number" min="0" step="1" placeholder="600" data-timeout="implementation">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Evaluation</span>
+        <input class="settings-number" id="cfg-timeout-evaluation" type="number" min="0" step="1" placeholder="300" data-timeout="evaluation">
+      </div>
+      <div class="settings-row">
+        <span class="settings-label">Review</span>
+        <input class="settings-number" id="cfg-timeout-review" type="number" min="0" step="1" placeholder="300" data-timeout="review">
+      </div>
+      <button class="settings-save-btn" id="settingsSaveBtn">Save Settings</button>
+      <div class="settings-hint" id="settingsHint"></div>
     </div>
   </div>
 </div>
@@ -935,6 +1038,9 @@ body {
   <div class="header-controls">
     <button class="settings-btn" id="settingsBtn" title="Settings">&#9881;</button>
     <button class="stop-btn hidden" id="stopBtn" onclick="sendStop()">Stop</button>
+    <span class="usage-tracker" id="usageTracker" style="display:none">
+      Tokens: <span id="usageIn">0</span> in / <span id="usageOut">0</span> out | <span class="usage-cost" id="usageCost">$0.00</span>
+    </span>
     <div class="header-status">
       <div class="status-dot" id="statusDot"></div>
       <span id="statusText">Connecting...</span>
@@ -1035,6 +1141,12 @@ const S = {
   activeTab: 'output',
   currentSprint: 0,
   projectCompleted: false,
+  // Streaming agent chunks
+  activeBubbles: {},  // agent -> {el, text}
+  // Usage tracking
+  totalInputTokens: 0,
+  totalOutputTokens: 0,
+  totalCost: 0,
 };
 
 // ─── WebSocket ──────────────────────────────
@@ -1080,6 +1192,9 @@ function connect() {
       // Settings saved confirmation
     } else if (data.type === 'pong') {
       // keepalive
+    } else if (data.type === 'agent_chunk') {
+      // Streaming chunks: do NOT add to logEvents (too noisy)
+      handleAgentChunk(data);
     } else {
       handleEvent(data);
     }
@@ -1088,6 +1203,11 @@ function connect() {
 
 // ─── Event Handler ──────────────────────────
 function handleEvent(ev) {
+  // agent_chunk should never go through here, but guard just in case (e.g. history replay)
+  if (ev.type === 'agent_chunk') {
+    handleAgentChunk(ev);
+    return;
+  }
   S.logEvents.push(ev);
   appendLog(ev);
 
@@ -1117,6 +1237,8 @@ function handleEvent(ev) {
 
     case 'agent_done':
       S.state.agent = null;
+      // Mark streaming bubble as complete (remove typing indicator)
+      finishAgentBubble(ev.agent);
       updateStatus();
       break;
 
@@ -1130,11 +1252,14 @@ function handleEvent(ev) {
       addSubItem('negotiation', `R${ev.round} ${ev.speaker}`, ev.agreed ? 'pass' : 'active');
       break;
 
-    case 'contract_agreed':
-      S.contracts.push({ sprint: S.currentSprint, text: ev.text || '' });
+    case 'contract_agreed': {
+      const contractText = (ev.text && ev.text.length > 100) ? ev.text : (ev.text || '');
+      S.contracts.push({ sprint: S.currentSprint, text: contractText });
       updatePhase('negotiation', 'complete');
-      if (S.activeTab === 'contract') renderContracts();
+      // Always render contracts regardless of active tab
+      renderContracts();
       break;
+    }
 
     case 'impl_cycle':
       S.state.impl_cycle = ev.cycle;
@@ -1172,6 +1297,13 @@ function handleEvent(ev) {
       S.state.status = 'complete';
       S.projectCompleted = true;
       updateStatus();
+      break;
+
+    case 'usage':
+      S.totalInputTokens += (ev.input_tokens || 0);
+      S.totalOutputTokens += (ev.output_tokens || 0);
+      S.totalCost += (ev.cost || 0);
+      renderUsage();
       break;
   }
 }
@@ -1295,6 +1427,77 @@ function renderOutputs() {
   }
   sec.innerHTML = html;
   sec.scrollTop = sec.scrollHeight;
+}
+
+// ─── Streaming Agent Chunks ──────────────────
+function handleAgentChunk(ev) {
+  const agent = ev.agent || 'unknown';
+  const sec = $('#sec-output');
+
+  // Clear empty state if present
+  const empty = sec.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  if (!S.activeBubbles[agent]) {
+    // Create a new bubble for this agent
+    const bubbleCls = getBubbleClass(agent);
+    const label = getBubbleLabel(agent);
+    const ts = new Date().toISOString().substring(11, 19);
+
+    const el = document.createElement('div');
+    el.className = `chat-bubble ${bubbleCls}`;
+    el.innerHTML = `
+      <div class="bubble-header">
+        <span class="bubble-label">${label}</span>
+        <span class="bubble-ts">${ts}</span>
+      </div>
+      <div class="md-body"></div>
+      <span class="typing-indicator"></span>`;
+    sec.appendChild(el);
+
+    S.activeBubbles[agent] = { el, text: '' };
+  }
+
+  const bubble = S.activeBubbles[agent];
+  bubble.text += (ev.text || '');
+  const mdBody = bubble.el.querySelector('.md-body');
+  mdBody.innerHTML = renderMarkdown(bubble.text);
+
+  // Auto-scroll the output section
+  const mainContent = $('#mainContent');
+  mainContent.scrollTop = mainContent.scrollHeight;
+}
+
+function finishAgentBubble(agent) {
+  if (!agent) return;
+  const bubble = S.activeBubbles[agent];
+  if (!bubble) return;
+
+  // Remove typing indicator
+  const indicator = bubble.el.querySelector('.typing-indicator');
+  if (indicator) indicator.remove();
+
+  // Also push the final text into S.outputs so it persists on re-render
+  if (bubble.text) {
+    S.outputs.push({ agent, text: bubble.text, ts: new Date().toISOString() });
+  }
+
+  delete S.activeBubbles[agent];
+}
+
+// ─── Usage Tracker ──────────────────────────
+function formatTokens(n) {
+  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+  return String(n);
+}
+
+function renderUsage() {
+  const tracker = $('#usageTracker');
+  tracker.style.display = '';
+  $('#usageIn').textContent = formatTokens(S.totalInputTokens);
+  $('#usageOut').textContent = formatTokens(S.totalOutputTokens);
+  $('#usageCost').textContent = '$' + S.totalCost.toFixed(2);
 }
 
 function renderContracts() {
@@ -1463,6 +1666,7 @@ function logMessage(ev) {
     case 'done_signal_missing': return 'Generator did not create .done';
     case 'project_complete': return 'Done';
     case 'error': return ev.message || '';
+    case 'usage': return `${ev.agent || ''}: ${ev.input_tokens||0} in / ${ev.output_tokens||0} out ($${(ev.cost||0).toFixed(4)})`;
     default: return JSON.stringify(ev).substring(0, 120);
   }
 }
@@ -1622,6 +1826,11 @@ function resetProject() {
   S.logEvents = [];
   S.currentSprint = 0;
   S.state = {};
+  S.activeBubbles = {};
+  S.totalInputTokens = 0;
+  S.totalOutputTokens = 0;
+  S.totalCost = 0;
+  $('#usageTracker').style.display = 'none';
   // Clear log body
   $('#logBody').innerHTML = '';
   $('#logCount').textContent = '0 events';
@@ -1689,11 +1898,16 @@ $('#settingsOverlay').addEventListener('click', (e) => {
   }
 });
 
-// Auto-save on change
-$$('.settings-select').forEach(sel => {
-  sel.addEventListener('change', () => {
-    sendConfigUpdate();
-  });
+// Save button instead of auto-save
+$('#settingsSaveBtn').addEventListener('click', () => {
+  sendConfigUpdate();
+  const btn = $('#settingsSaveBtn');
+  btn.textContent = 'Saved!';
+  btn.classList.add('saved');
+  setTimeout(() => {
+    btn.textContent = 'Save Settings';
+    btn.classList.remove('saved');
+  }, 2000);
 });
 
 function sendConfigUpdate() {
@@ -1702,10 +1916,18 @@ function sendConfigUpdate() {
     models[sel.dataset.role] = sel.value;
   });
 
+  const timeouts = {};
+  $$('.settings-number[data-timeout]').forEach(inp => {
+    const val = parseInt(inp.value, 10);
+    if (!isNaN(val) && val > 0) {
+      timeouts[inp.dataset.timeout] = val;
+    }
+  });
+
   if (ws && ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({
       command: 'update_config',
-      config: { models }
+      config: { models, timeouts }
     }));
   }
 }
@@ -1719,6 +1941,12 @@ async function loadConfig() {
       for (const [role, model] of Object.entries(data.models)) {
         const sel = document.querySelector(`.settings-select[data-role="${role}"]`);
         if (sel) sel.value = model;
+      }
+    }
+    if (data.timeouts) {
+      for (const [key, val] of Object.entries(data.timeouts)) {
+        const inp = document.querySelector(`.settings-number[data-timeout="${key}"]`);
+        if (inp) inp.value = val;
       }
     }
   } catch (e) {

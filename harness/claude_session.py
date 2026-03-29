@@ -1,7 +1,9 @@
 """Wrapper for calling Claude Code CLI with session management."""
 
+import json
 import subprocess
 import uuid
+from typing import Callable
 
 
 def fresh_session_id() -> str:
@@ -17,7 +19,8 @@ def call_claude(
     timeout: int = 600,
     allowed_tools: str | None = None,
     model: str = "opus",
-) -> str:
+    on_chunk: Callable[[str], None] | None = None,
+) -> str | dict:
     """Call Claude Code CLI with session support.
 
     Args:
@@ -29,9 +32,13 @@ def call_claude(
         timeout: Max seconds to wait for response.
         allowed_tools: Comma-separated tool names, or empty string to disable all tools.
         model: Model to use (e.g. "opus", "sonnet", "haiku").
+        on_chunk: Optional callback for streaming. When provided, each text
+            chunk from the assistant is passed to this function as it arrives.
 
     Returns:
-        The text response from Claude.
+        When on_chunk is None: the text response from Claude (str).
+        When on_chunk is provided: a dict with keys "text" (str) and
+        "usage" (dict | None with input_tokens, output_tokens, cost).
     """
     cmd = [
         "claude",
@@ -49,18 +56,106 @@ def call_claude(
     else:
         cmd.extend(["--resume", session_id])
 
-    result = subprocess.run(
+    # --- Non-streaming path (backward compatible) ---
+    if on_chunk is None:
+        result = subprocess.run(
+            cmd,
+            input="",
+            capture_output=True,
+            text=True,
+            cwd=workspace,
+            timeout=timeout,
+        )
+
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            if stderr:
+                print(f"  [claude stderr] {stderr[:300]}")
+
+        return result.stdout.strip()
+
+    # --- Streaming path ---
+    cmd.extend(["--output-format", "stream-json", "--verbose"])
+
+    accumulated_text = ""
+    usage = None
+
+    proc = subprocess.Popen(
         cmd,
-        input="",
-        capture_output=True,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
         cwd=workspace,
-        timeout=timeout,
     )
 
-    if result.returncode != 0:
-        stderr = result.stderr.strip()
-        if stderr:
-            print(f"  [claude stderr] {stderr[:300]}")
+    # Close stdin immediately (equivalent to piping empty string).
+    proc.stdin.close()
 
-    return result.stdout.strip()
+    try:
+        # Read stdout line-by-line for real-time streaming.
+        for line in proc.stdout:
+            line = line.strip()
+            if not line:
+                continue
+
+            try:
+                msg = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+            msg_type = msg.get("type")
+
+            if msg_type == "assistant":
+                # Assistant message with content blocks.
+                for block in msg.get("message", {}).get("content", []):
+                    if block.get("type") == "text":
+                        chunk = block.get("text", "")
+                        if chunk:
+                            on_chunk(chunk)
+                            accumulated_text += chunk
+
+            elif msg_type == "content_block_delta":
+                # Incremental text delta within a stream.
+                delta = msg.get("delta", {})
+                if delta.get("type") == "text_delta":
+                    chunk = delta.get("text", "")
+                    if chunk:
+                        on_chunk(chunk)
+                        accumulated_text += chunk
+
+            elif msg_type == "result":
+                # Final summary message with usage info.
+                result_data = msg.get("result", msg)
+                usage_raw = result_data.get("usage")
+                if usage_raw:
+                    usage = {
+                        "input_tokens": usage_raw.get("input_tokens"),
+                        "output_tokens": usage_raw.get("output_tokens"),
+                        "cost": result_data.get("cost_usd") or usage_raw.get("cost"),
+                    }
+                # Result may also carry final text if we missed deltas.
+                if not accumulated_text:
+                    for block in result_data.get("content", []):
+                        if block.get("type") == "text":
+                            accumulated_text += block.get("text", "")
+
+            # Ignore "system", "hook", and any other message types.
+
+        proc.wait(timeout=timeout)
+
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+    except Exception:
+        proc.kill()
+        proc.wait()
+        raise
+    finally:
+        # Ensure file descriptors are closed.
+        if proc.stdout:
+            proc.stdout.close()
+        if proc.stderr:
+            proc.stderr.close()
+
+    return {"text": accumulated_text.strip(), "usage": usage}
